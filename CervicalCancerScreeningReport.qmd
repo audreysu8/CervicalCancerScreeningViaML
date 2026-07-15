@@ -1,0 +1,742 @@
+---
+title: "Toward Accessible Cervical Cancer Screening: A Comparative Evaluation of Machine Learning Classification Models"
+output: html_document
+---
+by Audrey Su
+
+## **Introduction:**
+
+Cervical cancer is a cancer that affects women only and arises from the abnormal growth of cells in the cervix [1]. When detected early, cervical cancer is highly preventable and can be treated with a high rate of success [2]. Despite being largely preventable, cervical cancer continues to pose a significant global health challenge, with over 600,000 new diagnoses and over 340,000 fatalities recorded in 2020. Inequities in access to cervical cancer screening disproportionately affect underserved populations, frequently resulting in delayed diagnoses and poorer clinical outcomes [3]. Conventional screening methods such as Pap smears and Human Papillomavirus (HPV) testing, while clinically effective, require specialized infrastructure and expert interpretation that are frequently unavailable in low resource settings, disproportionately limiting access among the populations most burdened by cervical cancer [4]. An active and growing area of research is to apply machine learning models on routinely collected cervical cancer patient data to automatically classify patients as high risk or low risk for cervical cancer. This approach could provide accessible cervical cancer risk assessment in low resource settings where infrastructure for traditional screening is insufficient [5] and trained specialists aren't available [6]. Machine learning could enable earlier and more precise cervical cancer classification, potentially improving patient survival rates. This raises my research question: 
+
+**How well can machine learning models classify patients as having cervical cancer or not having cervical cancer using patient data?**
+
+For this study, I conduct my analysis on a dataset in UC Irvine Machine Learning Repository that was uploaded in 2017 that covers information on cervical cancer and its risk factors [7]. The data is comprised of patient records that were sourced from the Hospital Universitario de Caracas in Caracas, Venezuela. The dataset encompasses demographic characteristics, behavioral habits, and historical medical records drawn from a cohort of 858 patients. The dataset contains 36 features, such as "Age" (age of patient at hospitalization), "STDs.HPV" (binary indicator of whether a patient has a history of HPV diagnosis or not), and "Dx.Cancer" (binary indicator of whether a patient was diagnosed with cervical cancer or not) that describe the health information of each patient. For this analysis, the goal was to predict cervical cancer diagnosis (corresponding to the column "Dx.Cancer") based on predictor variables. I also aimed to match my predictions as closely as possible to the actual outcome values in the outcome column of "Dx.Cancer". The dataset contains missing values because some patients declined to respond to certain survey items due to privacy concerns.
+
+## **Methods:**
+
+3622 missing values were found in the data. The missing values were imputed in order to preserve dataset size, preserve the class structure of the data, and avoid selection bias. Imputation strategies were tailored to each variable type to preserve the statistical properties of each feature. After applying data cleaning and exploratory data analysis to the dataset, I applied feature engineering to the data in order to derive three new features from the existing variables in the data to extract more informative insights that machine learning models can better learn from. I created three additional features of "Time.since.First.intercourse" (the amount of years since the patient's first sexual intercourse), "Num.of.pregnancies..age" (the ratio between the number of pregnancies a patient has had and the patient's age), and "Early.intercourse" (a binary indicator of whether a patient had their first sexual intercourse at an early age or not). I removed the features of "STDs.cervical.condylomatosis" and "STDs.AIDS" from the dataset because these features have zero variance and therefore provide no discriminative information for a machine learning model to learn from. The features "Dx.CIN", "Dx.HPV", "Dx", "Hinselmann", "Schiller", "Citology", and "Biopsy" were removed prior to model training to prevent data leakage, as these variables directly encode or are closely related to cervical cancer diagnosis and would artificially inflate model performance if included as predictors. After applying all the necessary transformations to the data, the data now consisted of 858 rows and 30 features. I decided to keep all of the remaining 30 features for the future model training.
+
+I applied four different categories of machine learning models to the data: Logistic Regression, Random Forest Classifier, Gradient Boosted Machine (GBM), and Polynomial Support Vector Machine (SVM). Logistic Regression is a supervised machine learning algorithm used for binary classification that maps each observation to a probabilistic prediction of which class the observation belongs to, then assigns each observation to a corresponding class based on whether the observation's calculated probability exceeds a predetermined threshold or not. Logistic Regression was used because it can serve as a strong baseline model that is specifically designed for binary classification. Random Forest is a supervised ensemble learning algorithm that aggregates the predictions of multiple decision trees trained on bootstrapped samples of the data, determining final class assignments when used for binary classification through majority voting across all trees. I selected Random Forest Classifier because it can be more robust to overfitting and class imbalance, and because of its ability to work with complex, non-linear interactions between features. GBM is a supervised ensemble learning algorithm that sequentially trains decision trees, where each tree is fitted to the negative gradient of the loss function of its predecessor, progressively correcting prediction errors across boosting iterations. I chose GBM because it may be more robust to overfitting and class imbalance, and because its sequential boosting algorithm that iteratively tries to correct the errors made by previous trees can potentially reduce bias and variance in the data. Polynomial SVM is a supervised machine learning algorithm that finds the optimal hyperplane or decision boundary that separates the observations in the data into two different classes by maximizing the distance between the hyperplane and the surrounding observations; specifically, Polynomial SVM is a type of SVM that uses a polynomial kernel function to map input features into a higher dimensional polynomial feature space. I employed Polynomial SVM because of its robustness to overfitting, its capacity to capture non-linear relationships between predictors via the polynomial kernel, and its suitability for high dimensional classification problems. 
+
+I administered a stratified 70/30 training/test split on the data. I applied five-fold cross-validation on the training data to reduce the risk of overfitting. Hyperparameter tuning was conducted on the training data for each model using grid search, selecting the configuration yielding the highest cross validated AUC for evaluation on the test set. Model performance was assessed using accuracy, sensitivity, specificity, and AUC, with the model achieving the highest test set AUC identified as the best performing model for cervical cancer classification.
+
+A key challenge encountered during preprocessing was determining an appropriate imputation strategy for missing values. To preserve the statistical properties of each feature, I decided to apply three distinct imputation strategies based on variable type. For integer columns, I imputed NA values with the ceiling of the average of the non NA values in the column. For continuous numeric columns, I imputed NA values with the average of non NA values in the column. For binary columns, I imputed NA values with the mode of the non NA values in the column. Another issue encountered was trying to work with the dataset's class imbalance. Out of the 858 patients in the dataset, only 18 (around 2.1%) were diagnosed with cervical cancer. Because the dataset contains far more patients without cervical cancer than patients that do have cervical cancer, models will likely be biased toward predicting "No Cancer" and are more likely to generalize poorly to the test set. To mitigate the effects of class imbalance, a stratified 70/30 train/test split was administered to preserve the proportion of cancer positive and cancer negative cases across both the training and test sets. Additionally, rather than applying the default classification threshold of 0.5—which assumes balanced class distributions and tends to bias predictions toward the majority class in imbalanced datasets—the Youden Index was employed to select the optimal classification threshold for each model that best balances sensitivity and specificity. Another obstacle was that I did not have much background information on cervical cancer, which made conducting analysis and interpreting my results challenging. I did lots of research online on cervical cancer in order to make up my knowledge gap.
+
+## **Results:**
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(MASS)
+library(caret)
+library(ranger)
+library(gbm)
+library(kernlab)
+library(ROCit)
+library(dplyr)
+library(gridExtra)
+library(grid)
+library(knitr)
+library(kableExtra)
+```
+```{css, echo=FALSE}
+body, p, h1, h2, h3, h4, h5, h6, td, th, table {
+  font-family: "Source Sans Pro", sans-serif !important;
+}
+```
+```{r}
+set.seed(42)
+```
+
+```{r}
+# Read in cervical cancer data csv
+cervical <- read.csv('/Users/audreysu/Datasci 216/Final Project/risk_factors_cervical_cancer.csv')
+print(head(cervical))
+
+print("initial shape of dataframe:")
+print(dim(cervical))
+
+print("column names of dataframe:")
+print(colnames(cervical))
+
+print("structure of dataframe:")
+print(str(cervical))
+
+# inspect columns 
+
+for (i in colnames(cervical)) {
+    print(paste("table of", i, "column:"))
+    print(table(cervical[[i]]))
+}
+
+# change "?" values to being represented as NA
+
+cervical[cervical == "?"] <- NA
+
+print("number of missing values per column in dataframe:")
+print(colSums(is.na(cervical)))
+
+print("total number of missing values in dataframe:")
+print(sum(colSums(is.na(cervical))))
+
+# convert data types
+
+for (i in c("Number.of.sexual.partners", "First.sexual.intercourse", "Num.of.pregnancies", "Smokes", "Hormonal.Contraceptives", "IUD", "STDs", "STDs..number.", "STDs.condylomatosis", "STDs.cervical.condylomatosis", "STDs.vaginal.condylomatosis", "STDs.vulvo.perineal.condylomatosis", "STDs.syphilis", "STDs.pelvic.inflammatory.disease", "STDs.genital.herpes", "STDs.molluscum.contagiosum", "STDs.AIDS", "STDs.HIV", "STDs.Hepatitis.B", "STDs.HPV", "STDs..Time.since.first.diagnosis", "STDs..Time.since.last.diagnosis")) {
+    cervical[[i]] <- as.integer(cervical[[i]])
+}
+
+for (i in c("Smokes..years.", "Smokes..packs.year.", "Hormonal.Contraceptives..years.", "IUD..years.")) {
+    cervical[[i]] <- as.numeric(cervical[[i]])
+}
+
+print("structure of dataframe after changing datatypes:")
+print(str(cervical))
+
+# address missing values
+
+# repace NA values in integer columns with average of the non NA values in the column rounded up
+for (i in c("Number.of.sexual.partners", "First.sexual.intercourse", "Num.of.pregnancies", "STDs..number.", "STDs..Time.since.first.diagnosis", "STDs..Time.since.last.diagnosis")) {
+    x <- cervical[[i]]
+    x[is.na(x)] <- ceiling(mean(x, na.rm = TRUE))
+    cervical[[i]] <- x
+}
+
+# repace NA values in continuous numeric columns with average of the non NA values in the column
+for (i in c("Smokes..years.", "Smokes..packs.year.", "Hormonal.Contraceptives..years.", "IUD..years.")) {
+    x <- cervical[[i]]
+    x[is.na(x)] <- mean(x, na.rm = TRUE)
+    cervical[[i]] <- x
+}
+
+# repace NA values in binary yes/no columns with mode of the non NA values in the column
+
+get_mode <- function(x) {
+    x <- x[!is.na(x)]  
+    ux <- unique(x)
+    ux[which.max(tabulate(match(x, ux)))]
+}
+for (i in c("Smokes", "Hormonal.Contraceptives", "IUD", "STDs", "STDs.condylomatosis", "STDs.cervical.condylomatosis", "STDs.vaginal.condylomatosis", "STDs.vulvo.perineal.condylomatosis", "STDs.syphilis", "STDs.pelvic.inflammatory.disease", "STDs.genital.herpes", "STDs.molluscum.contagiosum", "STDs.AIDS", "STDs.HIV", "STDs.Hepatitis.B", "STDs.HPV")) {
+    x <- cervical[[i]]
+    x[is.na(x)] <- get_mode(x)
+    cervical[[i]] <- x
+}
+
+print("missing count after imputing missing values:")
+print(colSums(is.na(cervical)))
+
+print("summary of dataframe after transforming column types and addressing missing values:")
+print(summary(cervical))
+```
+
+Below is a histogram of the values that the outcome variable "Dx.Cancer" takes on:
+```{r}
+# geneate a basic visualization
+
+# histogram of Dx.Cancer
+
+barplot(table(cervical$Dx.Cancer),
+        main = "Figure 1: Distribution of Cervical Cancer Diagnosis",
+        xlab = "Cancer Diagnosis",
+        ylab = "Count",
+        names.arg = c("No Cancer", "Cancer"))
+```
+
+```{r}
+# apply feature engineering to extract new columns
+
+# create new column called Time.since.First.intercourse that measures the amount of years since first sexual intercourse
+cervical$Time.since.First.intercourse <- pmax(cervical$Age - cervical$First.sexual.intercourse, 0)
+
+# create a new column called Num.of.pregnancies..age that measures the ratio between number of pregnancies and age
+cervical$Num.of.pregnancies..age <- cervical$Num.of.pregnancies / cervical$Age
+
+# create a new column called Early.intercourse that describes whether a patient had their first sexual intercourse at an early age or not
+cervical$Early.intercourse <- ifelse(as.numeric(cervical$First.sexual.intercourse) <= 16, 1, 0)
+
+print("new shape of dataframe:")
+print(dim(cervical))
+```
+
+```{r}
+# remove some features
+
+# remove columns that only take on a single value, as this means that the feature is redundant
+cervical$STDs.cervical.condylomatosis <- NULL
+cervical$STDs.AIDS <- NULL
+
+# remove proxies for our decided target variable of Dx.Cancer
+
+for (i in c("Dx.CIN", "Dx.HPV", "Dx", "Hinselmann", "Schiller", "Citology", "Biopsy")) {
+    cervical[[i]] <- NULL
+}
+
+print("new shape of dataframe:")
+print(dim(cervical))
+
+print("column names of new dataframe:")
+print(colnames(cervical))
+
+# ensure that target variable "Dx.Cancer" is factor
+cervical$Dx.Cancer <- as.factor(cervical$Dx.Cancer)
+levels(cervical$Dx.Cancer) <- c("No", "Yes")
+
+print("result of converting Dx.Cancer to a factor:")
+print(head(cervical$Dx.Cancer))
+```
+
+Below is a table displaying some summary statistics of the final dataframe fed into the machine learning models:
+```{r}
+# create summary dataframe
+
+# define numeric and binary columns
+numeric_cols <- c(
+  "Age",
+  "Number.of.sexual.partners",
+  "First.sexual.intercourse",
+  "Num.of.pregnancies",
+  "Smokes..years.",
+  "Smokes..packs.year.",
+  "Hormonal.Contraceptives..years.",
+  "IUD..years.",
+  "STDs..number.",
+  "STDs..Number.of.diagnosis",
+  "STDs..Time.since.first.diagnosis",
+  "STDs..Time.since.last.diagnosis",
+  "Time.since.First.intercourse",
+  "Num.of.pregnancies..age"
+)
+
+binary_cols <- c(
+  "Smokes",
+  "Hormonal.Contraceptives",
+  "IUD",
+  "STDs",
+  "STDs.condylomatosis",
+  "STDs.vaginal.condylomatosis",
+  "STDs.vulvo.perineal.condylomatosis",
+  "STDs.syphilis",
+  "STDs.pelvic.inflammatory.disease",
+  "STDs.genital.herpes",
+  "STDs.molluscum.contagiosum",
+  "STDs.HIV",
+  "STDs.Hepatitis.B",
+  "STDs.HPV",
+  "Early.intercourse",
+  "Dx.Cancer"
+)
+
+# better names for numeric variables
+numeric_names <- c(
+  "Age",
+  "Number of Sexual Partners",
+  "Age of First Sexual Intercourse",
+  "Number of Pregnancies",
+  "Number of Years Smoking",
+  "Cigarette Pack Consumption (Packs/Year)",
+  "Hormonal Contraceptive Use Duration (Years)",
+  "IUD Use Duration (Years)",
+  "Number of STDs",
+  "Number of STD Diagnoses",
+  "Number of Years Since First STD Diagnosis",
+  "Number of Years Since Last STD Diagnosis",
+  "Number of Years Since First Intercourse",
+  "Number of Pregnancies to Age Ratio"
+)
+
+# friendly display names for binary columns
+binary_names <- c(
+  "Smokes",
+  "Hormonal Contraceptives",
+  "IUD",
+  "STDs",
+  "STDs: Condylomatosis",
+  "STDs: Vaginal Condylomatosis",
+  "STDs: Vulvo-Perineal Condylomatosis",
+  "STDs: Syphilis",
+  "STDs: Pelvic Inflammatory Disease",
+  "STDs: Genital Herpes", 
+  "STDs: Molluscum Contagiosum",
+  "STDs: HIV",
+  "STDs: Hepatitis B",
+  "STDs: HPV",
+  "Early Intercourse (<=16)",
+  "Cervical Cancer Diagnosis"
+)
+
+# summary statistics for numeric variables
+numeric_summary <- data.frame(
+  Feature     = numeric_names,
+  Type        = "Numeric",
+  Mean        = round(sapply(numeric_cols, function(col) mean(cervical[[col]], na.rm = TRUE)), 7),
+  SD          = round(sapply(numeric_cols, function(col) sd(cervical[[col]], na.rm = TRUE)), 7),
+  Min         = round(sapply(numeric_cols, function(col) min(cervical[[col]], na.rm = TRUE)), 7),
+  Max         = round(sapply(numeric_cols, function(col) max(cervical[[col]], na.rm = TRUE)), 7),
+  `Count (Yes)`       = NA,
+  `Percentage (Yes)`  = NA,
+  row.names   = NULL
+)
+
+# summary statistics for binary variables
+binary_summary <- data.frame(
+  Feature     = binary_names,
+  Type        = "Binary",
+  Mean        = NA,
+  SD          = NA,
+  Min         = NA,
+  Max         = NA,
+  `Count (Yes)` = sapply(binary_cols, function(col) {
+    if (is.factor(cervical[[col]])) {
+      sum(cervical[[col]] == "Yes", na.rm = TRUE)
+    } else {
+      sum(cervical[[col]] == 1, na.rm = TRUE)
+    }
+  }),
+  `Percentage (Yes)` = round(sapply(binary_cols, function(col) {
+    if (is.factor(cervical[[col]])) {
+      mean(cervical[[col]] == "Yes", na.rm = TRUE) * 100
+    } else {
+      mean(cervical[[col]] == 1, na.rm = TRUE) * 100
+    }
+  }), 7),
+  row.names   = NULL
+)
+
+# combine into one unified summary table
+summary_table <- rbind(numeric_summary, binary_summary)
+```
+
+```{r}
+summary_table %>%
+  kable(
+    format    = "html",
+    caption   = "<span style='color: black; font-weight: bold;'>Table 1: Summary Statistics of Cervical Cancer Dataset</span>",
+    digits    = 4,
+    align     = c("l", "c", "c", "c", "c", "c", "c", "c")
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "bordered"),
+    full_width        = FALSE,
+    font_size         = 12
+  ) %>%
+  column_spec(1, bold = TRUE)
+```
+```{r}
+# administer stratified 70/30 training/test split using createDataPartition 
+set.seed(42)
+idx <- createDataPartition(cervical$Dx.Cancer, p = 0.7, list = FALSE)
+print(head(idx))
+
+train <- cervical[idx, ]
+print("dimensions of train:")
+print(dim(train))
+print("column names of train:")
+print(colnames(train))
+test <- cervical[-idx, ]
+print("dimensions of test:")
+print(dim(test))
+print("column names of test:")
+print(colnames(test))
+```
+
+```{r}
+# set up 5 fold cross validation
+train_control <- trainControl(
+  method          = "cv",     
+  number          = 5,
+  classProbs      = TRUE,        
+  summaryFunction = twoClassSummary,
+  # savePredictions = "final"
+)
+```
+
+```{r}
+# train Logistic Regression model
+
+tune_grid <- expand.grid(
+  alpha  = c(0, 0.25, 0.5, 0.75, 1),
+  lambda = 10^seq(-4, 1, length.out = 5)
+)
+
+set.seed(42)
+logistic <- train(
+  Dx.Cancer ~ .,               
+  data      = train,
+  method    = "glmnet",   
+  trControl = train_control,
+  tuneGrid  = tune_grid,
+  metric    = "ROC",
+  family    = "binomial"   
+)
+
+# Inspect most optimal hyperparameters
+print("most optimal hyperparameters:")
+print(logistic$bestTune)
+
+# Computed error metrics on training data
+# note: specificity and sensitivity metrics calculated for training data use default threshold of 0.5 to predict class
+logistic$results %>%
+  arrange(desc(ROC))
+
+# take best Logistic Regression model and apply it to test set
+
+# generate prediction probabilities
+predicted_logistic <- predict(logistic, newdata = test, type = "prob")[, "Yes"]
+
+roc_curve_logistic <- rocit(score = predicted_logistic, class = test$Dx.Cancer)
+
+# calculate AUC of logistic regression model on test set
+auc_logistic <- roc_curve_logistic$AUC
+print("AUC of logistic regression model on test set:")
+print(auc_logistic)
+
+# now I calculate optimal Youden Index threshold
+optimal_threshold <- roc_curve_logistic$Cutoff[which.max(roc_curve_logistic$TPR - roc_curve_logistic$FPR)]
+print("optimal Youden Index threshold for Logistic Regression on test set:")
+print(optimal_threshold)
+
+
+# generate prediction classes
+predicted_classes_logistic <- as.factor(ifelse(predicted_logistic > optimal_threshold, "Yes", "No"))
+
+print(predicted_classes_logistic)
+
+# create confusion matrix
+cm_logistic <- confusionMatrix(
+  predicted_classes_logistic,
+  test$Dx.Cancer,
+  positive = "Yes"
+)
+print(cm_logistic)
+
+# calculate accuracy, sensitivity, specificity
+accuracy_logistic <- cm_logistic$overall["Accuracy"]
+print("accuracy of Logistic Regression on test set:")
+print(accuracy_logistic)
+sensitivity_logistic <- cm_logistic$byClass["Sensitivity"]
+print("sensitivity of Logistic Regression on test set:")
+print(sensitivity_logistic)
+specificity_logistic <- cm_logistic$byClass["Specificity"]
+print("specificity of Logistic Regression on test set:")
+print(specificity_logistic)
+```
+
+Below is a plot of the ROC Curve of the Logistic Regression model applied to the test set:
+```{r}
+# plot test set AUC of logistic regression model
+plot(roc_curve_logistic, col = c("steelblue", "grey"))
+legend("topleft",
+       legend = paste("AUC =", round(auc_logistic, 7)),
+       col    = "steelblue",
+       lwd    = 2)
+title(main = "Figure 2: ROC Curve of Logistic Regression Model on Test Set")
+```
+
+```{r}
+# train Random Forest
+
+# find total number of predictors in `train`
+num_features <- ncol(train) - 1
+print("total number of features in train:")
+print(num_features)
+
+tune_grid_rf <- expand.grid(
+  mtry          = c(2, floor(sqrt(num_features)), floor(num_features / 3), floor(num_features / 2), num_features),
+  splitrule     = "gini",
+  min.node.size = c(1, 3, 5, 10)
+)
+
+set.seed(42)
+rf <- suppressWarnings(train(
+  Dx.Cancer ~ .,               
+  data      = train,
+  method    = "ranger",   
+  trControl = train_control,
+  tuneGrid  = tune_grid_rf,
+  metric    = "ROC",
+  class.weights   = c("No" = 1, "Yes" = 10)
+))
+
+# Inspect most optimal hyperparameters
+print("most optimal hyperparameters:")
+print(rf$bestTune)
+
+# Computed error metrics on training data
+# note: specificity and sensitivity metrics calculated for training data use default threshold of 0.5 to predict class
+rf$results %>%
+  arrange(desc(ROC))
+
+# take best Random Forest model and apply it to test set
+
+# generate prediction probabilities
+predicted_rf <- predict(rf, newdata = test, type = "prob")[, "Yes"]
+
+roc_curve_rf <- rocit(score = predicted_rf, class = test$Dx.Cancer)
+
+# calculate AUC of Random Forest model on test set
+auc_rf <- roc_curve_rf$AUC
+print("AUC of Random Forest model on test set:")
+print(auc_rf)
+
+# now I calculate optimal Youden Index threshold
+optimal_threshold_rf <- roc_curve_rf$Cutoff[which.max(roc_curve_rf$TPR - roc_curve_rf$FPR)]
+print("optimal Youden Index threshold for Random Forest on test set:")
+print(optimal_threshold_rf)
+
+
+# generate prediction classes
+predicted_classes_rf <- as.factor(ifelse(predicted_rf > optimal_threshold_rf, "Yes", "No"))
+
+print(predicted_classes_rf)
+
+# create confusion matrix
+cm_rf <- confusionMatrix(
+  predicted_classes_rf,
+  test$Dx.Cancer,
+  positive = "Yes"
+)
+print(cm_rf)
+
+# calculate accuracy, sensitivity, specificity
+accuracy_rf <- cm_rf$overall["Accuracy"]
+print("accuracy of Random Forest on test set:")
+print(accuracy_rf)
+sensitivity_rf <- cm_rf$byClass["Sensitivity"]
+print("sensitivity of Random Forest on test set:")
+print(sensitivity_rf)
+specificity_rf <- cm_rf$byClass["Specificity"]
+print("specificity of Random Forest on test set:")
+print(specificity_rf)
+```
+
+Below is a plot of the ROC Curve of the Random Forest model applied to the test set:
+```{r}
+# plot test set AUC of Random Forest model
+plot(roc_curve_rf, col = c("steelblue", "grey"))
+legend("topleft",
+       legend = paste("AUC =", round(auc_rf, 7)),
+       col    = "steelblue",
+       lwd    = 2)
+title(main = "Figure 3: ROC Curve of Random Forest Model on Test Set")
+```
+
+```{r}
+# train GBM
+
+tune_grid_gbm <- expand.grid(
+  n.trees           = c(100, 200, 300),  
+  interaction.depth = c(2, 3, 5),        
+  shrinkage         = c(0.01, 0.05, 0.1), 
+  n.minobsinnode    = c(1, 5, 10)         
+)
+
+set.seed(42)
+gbm <- suppressWarnings(train(
+  Dx.Cancer ~ .,               
+  data      = train,
+  method    = "gbm",   
+  trControl = train_control,
+  tuneGrid  = tune_grid_gbm,
+  metric    = "ROC",  
+  verbose   = FALSE    
+))
+
+# Inspect most optimal hyperparameters
+print("most optimal hyperparameters:")
+print(gbm$bestTune)
+
+# Computed error metrics on training data
+# note: specificity and sensitivity metrics calculated for training data use default threshold of 0.5 to predict class
+gbm$results %>%
+  arrange(desc(ROC))
+
+# take best model and apply it to test set
+
+# generate prediction probabilities
+predicted_gbm <- predict(gbm, newdata = test, type = "prob")[, "Yes"]
+
+roc_curve_gbm <- rocit(score = predicted_gbm, class = test$Dx.Cancer)
+
+# calculate AUC of Random Forest model on test set
+auc_gbm <- roc_curve_gbm$AUC
+print("AUC of GBM model on test set:")
+print(auc_gbm)
+
+# now I calculate optimal Youden Index threshold
+optimal_threshold_gbm <- roc_curve_gbm$Cutoff[which.max(roc_curve_gbm$TPR - roc_curve_gbm$FPR)]
+print("optimal Youden Index threshold for GBM on test set:")
+print(optimal_threshold_gbm)
+
+# generate prediction classes
+predicted_classes_gbm <- as.factor(ifelse(predicted_gbm > optimal_threshold_gbm, "Yes", "No"))
+
+print(predicted_classes_gbm)
+
+# create confusion matrix
+cm_gbm <- confusionMatrix(
+  predicted_classes_gbm,
+  test$Dx.Cancer,
+  positive = "Yes"
+)
+print(cm_gbm)
+
+# calculate accuracy, sensitivity, specificity
+accuracy_gbm <- cm_gbm$overall["Accuracy"]
+print("accuracy of GBM on test set:")
+print(accuracy_gbm)
+sensitivity_gbm <- cm_gbm$byClass["Sensitivity"]
+print("sensitivity of GBM on test set:")
+print(sensitivity_gbm)
+specificity_gbm <- cm_gbm$byClass["Specificity"]
+print("specificity of GBM on test set:")
+print(specificity_gbm)
+```
+
+Below is a plot of the ROC Curve of the GBM model applied to the test set:
+```{r}
+# plot test set AUC of GBM model
+plot(roc_curve_gbm, col = c("steelblue", "grey"))
+legend("topleft",
+       legend = paste("AUC =", round(auc_gbm, 7)),
+       col    = "steelblue",
+       lwd    = 2,
+       cex    = 0.7)      
+title(main = "Figure 4: ROC Curve of GBM Model on Test Set")
+```
+
+```{r}
+# train Polynomial SVM
+
+tune_grid_svm <- expand.grid(
+  C      = c(0.01, 0.1, 1, 10, 100),  
+  degree = c(2, 3),                
+  scale  = c(0.001, 0.01, 0.1, 1)     
+)
+
+set.seed(42)
+svm <- suppressWarnings(train(
+  Dx.Cancer ~ .,
+  data       = train,
+  method     = "svmPoly",
+  trControl  = train_control,
+  tuneGrid   = tune_grid_svm,
+  metric     = "ROC",
+  preProcess = c("center", "scale"),
+  class.weights = c(No = 1, Yes = 10)))
+
+# Inspect most optimal hyperparameters
+print("most optimal hyperparameters:")
+print(svm$bestTune)
+
+# Computed error metrics on training data
+# note: specificity and sensitivity metrics calculated for training data use default threshold of 0.5 to predict class
+svm$results %>%
+  arrange(desc(ROC))
+
+# take best Polynomial SVM model and apply it to test set
+
+# generate prediction probabilities
+predicted_svm <- predict(svm, newdata = test, type = "prob")[, "Yes"]
+
+roc_curve_svm <- rocit(score = predicted_svm, class = test$Dx.Cancer)
+
+# calculate AUC of Polynomial SVM model on test set
+auc_svm <- roc_curve_svm$AUC
+print("AUC of Polynomial SVM model on test set:")
+print(auc_svm)
+
+# now I calculate optimal Youden Index threshold
+optimal_threshold_svm <- roc_curve_svm$Cutoff[which.max(roc_curve_svm$TPR - roc_curve_svm$FPR)]
+print("optimal Youden Index threshold for Polynomial SVM on test set:")
+print(optimal_threshold_svm)
+
+
+# generate prediction classes
+predicted_classes_svm <- as.factor(ifelse(predicted_svm > optimal_threshold_svm, "Yes", "No"))
+
+print(predicted_classes_svm)
+
+# create confusion matrix
+cm_svm <- confusionMatrix(
+  predicted_classes_svm,
+  test$Dx.Cancer,
+  positive = "Yes"
+)
+print(cm_svm)
+
+# calculate accuracy, sensitivity, specificity
+accuracy_svm <- cm_svm$overall["Accuracy"]
+print("accuracy of Radial SVM on test set:")
+print(accuracy_svm)
+sensitivity_svm <- cm_svm$byClass["Sensitivity"]
+print("sensitivity of Radial SVM on test set:")
+print(sensitivity_svm)
+specificity_svm <- cm_svm$byClass["Specificity"]
+print("specificity of Radial SVM on test set:")
+print(specificity_svm)
+```
+
+Below is a plot of the ROC Curve of the Polynomial SVM model applied to the test set:
+```{r}
+# plot test set AUC of Polynomial SVM model
+plot(roc_curve_svm, col = c("steelblue", "grey"))
+legend("topleft",
+       legend = paste("AUC =", round(auc_svm, 7)),
+       col    = "steelblue",
+       lwd    = 2,
+       cex    = 0.5)
+title(main = "Figure 5: ROC Curve of Polynomial SVM Model on Test Set")
+```
+
+Below is a table comparing the four models' performance on the test set:
+```{r}
+# create final table comparing performance of four models on test set
+results <- data.frame(
+  Model       = c("Logistic Regression", "Random Forest", "GBM", "Polynomial SVM"),
+  Accuracy    = round(c(accuracy_logistic, accuracy_rf, accuracy_gbm, accuracy_svm), 7),
+  Sensitivity = round(c(sensitivity_logistic, sensitivity_rf, sensitivity_gbm, sensitivity_svm), 7),
+  Specificity = round(c(specificity_logistic, specificity_rf, specificity_gbm, specificity_svm), 7),
+  AUC         = round(c(auc_logistic, auc_rf, auc_gbm, auc_svm), 7)
+
+)
+
+grid.newpage()
+grid.text(
+  "Table 2: Comparison of Model Performance on Test Set",
+  x    = 0.5,
+  y    = 0.7,                   
+  gp   = gpar(fontsize   = 12,
+               fontface  = "bold")
+)
+grid.table(results)
+```
+
+We note that all four models were able to achieve fairly reasonable accuracy in the range of 0.7392996-0.9494163. However, these accuracy values are likely inflated because of the class imbalance in the dataset—since only around 2.1% of patients were diagnosed with cervical cancer, models can achieve high accuracy by only predicting "No Cancer". Additionally, accuracy treats all misclassifications equally, which is inappropriate in a clinical screening context where false negatives—failing to identify a patient who has cervical cancer—carry far greater consequences than false positives. Therefore, accuracy values for our models should be interpreted with caution. We instead use AUC, which measures a model's ability to discriminate between classes, to rank model performance. 
+
+The Logistic Regression model achieved the highest specificity (proportion of negative cases that are correctly identified) of 0.9603175. Logistic Regression achieved a moderate AUC of 0.7325397, meaning that it has a decent ability to distinguish between classes. However, Logistic Regression noticeably underperformed the other models in terms of AUC. Furthermore, Logistic Regression produced a noticeably low sensitivity (proportion of cervical cancer cases that are correctly identified) of 0.4, meaning that Logistic Regression was able to correctly identify true cervical cancer cases 40% of the time. This is a very poor result in a clinical context, as in the real world these missed diagnoses represent patients who would be incorrectly informed that they are healthy, potentially delaying treatment and allowing the disease to progress to a more advanced and less treatable stage. True positives should be weighed more than true negatives. In a cervical cancer screening context, the cost of a false negative far outweighs the cost of a false positive—a patient incorrectly cleared of cancer may forgo further testing entirely, whereas a patient incorrectly flagged as high risk can be ruled out through additional follow-up testing. Therefore, despite its high specificity, Logistic Regression is not a suitable model for cervical cancer classification in a clinical context.
+
+Random Forest achieved a lower specificity (0.8452381) than Logistic Regression; however, Random Forest achieved a stronger AUC (0.8452381) than Logistic Regression. Random Forest produced a sensitivity of 0.6, which is a modest improvement over Logistic Regression. However, a sensitivity of 0.6 means that Random Forest still fails to identify 40% of true cervical cancer cases. We can deduce that Random Forest is a stronger model than Logistic Regression to deploy in a clinical context because it obtains higher AUC and sensitivity, but further improvements need to be made so that Random Forest correctly classifies more cases of cervical cancer. 
+
+GBM obtained a higher AUC (0.8769841) than Random Forest. GBM produced an sensitivity of 0.6, which equals the sensitivity achieved by Random Forest. An important consideration is that GBM still fails to correctly diagnose 40% of cervical cancer cases, which is a fairly poor result in a clinical context. Because GBM's higher AUC indicates overall stronger discriminative ability than Random Forest, GBM is overall a stronger model than Random Forest.
+
+Polynomial SVM emerged as the strongest model overall, with an excellent AUC of 0.9182540 (the highest out of all models). Polynomial SVM also achieved the highest sensitivity of 0.8. Although Polynomial SVM obtained the lowest accuracy (0.7392996) and specificity (0.7380952) out of all models, Polynomial SVM is the strongest model in a clinical context because outperforms the other models for two crucial error metrics—AUC and sensitivity. However, Polynomial SVM's sensitivity of 0.8 means that 20% of the time, Polynomial SVM fails to identify patients that do have cervical cancer. Given the clinical weight of incorrectly informaing a patient that they are healthy when they actually have cervical cancer, Polynomial SVM's sensitivity is insufficient. From this, we can conclude that machine learning can classify cervical cancer in patients with reasonable but flawed success. Overall, Polynomial SVM shows promise as a foundation for a more accessible alternative cervical cancer screening tool in resource-limited settings. However, its sensitivity of 0.8 is not yet sufficient for real-world clinical deployment—particularly in underdeveloped healthcare systems where patients may have limited access to follow-up care, meaning a missed diagnosis is far more likely to go undetected and untreated than in well-resourced settings. Therefore, future work should prioritize improving model sensitivity before machine learning can be considered a viable alternative to traditional cervical cancer screening methods.
+
+## **Discussion:**
+
+The main finding from the study is machine learning can classify patients as having cervical cancer or not having cervical cancer using patient data with reasonable effectiveness; however, future work needs to be done to reduce the amount of cervical cancer cases missed by machine learning. For machine learning to serve as a viable alternative to traditional cervical cancer screening and address inequities in access to healthcare, future models must attain substantially higher sensitivity to ensure that patients with cervical cancer are reliably identified and can receive timely treatment and preventative care.
+
+A limitation of this study is that there was not sufficient time to train other categories of machine learning models on the data. It's possible that other candidate models may have been able to produce better results, and therefore be more suitable to deploy as an alternative for cervical cancer screening. Additionally, time constraints limited the extent to which each model could be optimized. With more efforts dedicated toward model performance optimization, the models may have been able to achieve stronger results and better sensitivity. 
+
+A potential source of bias is that the dataset was extracted from medical records at a single hospital in Caracas, Venezuela. This means that the cohort of patients included in the data may not be representative of other patient populations, limiting our models' generalizability to other patient populations. A further source of bias stems from the fact that patients who declined to answer certain survey items may differ systematically from those who did respond, which could distort the relationship between the outcome of cervical cancer diagnosis and the predictors in our dataset. In addition, the self-reported nature of the data could introduce social desirability or recall bias, causing patients to report incorrect values. The dataset used also contained class imbalance, as only around 2.1% of patients were diagnosed with cervical cancer, which could bias model predictions toward the negative class (the majority class). Despite efforts to mitigate this, the issue may not have been fully resolved.
+
+A potential source of overfitting is the data including only 858 patients, which could cause models to memorize patterns specific only to this set of patients instead of learning true interactions in the data, causing the models to be more likely to generalize poorly to other datasets. Another possible source of overfitting is the dataset's high dimensionality relative to its sample size, as it increases the chance that models learn noise or spurious patterns that do not generalize well to unseeen data.
+
+## **Citations:**
+
+1. National Institutes of Health (NIH). (n.d.). What Is Cervical Cancer?. National Cancer Institute. https://www.cancer.gov/types/cervical 
+2. National Institutes of Health (NIH). (2024, August 2). Cervical Cancer Causes, Risk Factors, and Prevention. National Cancer Institute. https://www.cancer.gov/types/cervical/causes-risk-prevention 
+3. Sung H, Ferlay J, Siegel RL, Laversanne M, Soerjomataram I, Jemal A, Bray F. Global cancer statistics 2020: GLOBOCAN estimates of incidence and mortality worldwide for 36 cancers in 185 countries. CA Cancer J Clin. 2021:71:209-249. https://doi.org/10.3322/caac.21660 
+4. Gopalkrishnan, K., & Karim, R. (2025). Addressing Global Disparities in Cervical Cancer Burden: A Narrative Review of Emerging Strategies. Current HIV/AIDS reports, 22(1), 18. https://doi.org/10.1007/s11904-025-00727-2 
+5. Toffaha K, Simsekler MCE, Sleptchenko A, Kortt MA, Bukasa LL. A Machine Learning and Bayesian Belief Network Approach to Predicting Cervical Cancer Risk: Implications for Risk Management. J Multidiscip Healthc. 2025;18:5199-5211
+https://doi.org/10.2147/JMDH.S524132
+6. Vazquez, B., Rojas-García, M., Rodríguez-Esquivel, J. I., Marquez-Acosta, J., Aranda-Flores, C. E., Cetina-Pérez, L. d. C., Soto-López, S., Estévez-García, J. A., Bahena-Román, M., Madrid-Marina, V., & Torres-Poveda, K. (2025). Machine and Deep Learning for the Diagnosis, Prognosis, and Treatment of Cervical Cancer: A Scoping Review. Diagnostics, 15(12), 1543. https://doi.org/10.3390/diagnostics15121543
+7. Fernandes, K., Cardoso, J., & Fernandes, J. (2017). Cervical Cancer (Risk Factors) [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5Z310.
